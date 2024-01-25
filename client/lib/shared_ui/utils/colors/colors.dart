@@ -16,4 +16,5 @@ class CustomColor {
   static Color purple = const Color(0xFFA178F1);
   static Color purple50 = const Color.fromRGBO(161, 120, 241, 0.5);
   static Color white = const Color(0xFFFfffff);
+  static Color grey = const Color(0xFF70768C);
 }
