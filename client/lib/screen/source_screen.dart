@@ -94,7 +94,7 @@ class _SourceScreenState extends State<SourceScreen> {
 
       try {
         Response response = await dio.post(
-          "http://localhost:8080/uploads",
+          "http://172.31.71.106:8080/uploads",
           data: formData,
         );
 
@@ -122,100 +122,109 @@ class _SourceScreenState extends State<SourceScreen> {
       backgroundColor: CustomColor.background,
       body: Column(
         children: [
-          IconButton(
-            onPressed: () {
-              uploadFile();
-            },
-            icon: CustomIcons.upload,
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              const SizedBox(width: 100),
+              IconButton(
+                onPressed: () {
+                  uploadFile();
+                },
+                icon: CustomIcons.upload,
+              ),
+            ],
           ),
+          const DividerWidget(),
           Expanded(
-            child: DataTable(
-              columns: const [
-                DataColumn(label: Text('File Name')),
-                DataColumn(label: Text('Size')),
-                DataColumn(label: Text('Date Upload')),
-              ],
-              rows: fileList
-                  .map(
-                    (file) => DataRow(
-                      onSelectChanged: (isSelected) {
-                        if (isSelected != null && isSelected) {
-                          // Navigate to file details view when a row is selected
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => FileDetailsView(file: file),
-                            ),
-                          );
-                        }
-                      },
-                      cells: [
-                        DataCell(Text(file.fileName)),
-                        DataCell(Text(file.size)),
-                        DataCell(Text(file.dateUpload)),
-                      ],
+            child: SingleChildScrollView(
+              scrollDirection: Axis.vertical,
+              child: DataTable(
+                columnSpacing: 120, // Khoảng cách giữa các cột
+                columns: [
+                  DataColumn(
+                    label: Text(
+                      'File Name',
+                      style: TextStyles.tittleTable,
                     ),
-                  )
-                  .toList(),
+                  ),
+                  DataColumn(
+                    label: Text(
+                      'Size',
+                      style: TextStyles.tittleTable,
+                    ),
+                  ),
+                  DataColumn(
+                    label: Text(
+                      'Date Upload',
+                      style: TextStyles.tittleTable,
+                    ),
+                  ),
+                  DataColumn(
+                    label: Text(
+                      'Download',
+                      style: TextStyles.tittleTable,
+                    ),
+                  ),
+                ],
+                rows: fileList
+                    .map(
+                      (file) => DataRow(
+                        cells: [
+                          DataCell(InkWell(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      FileDetailsView(file: file),
+                                ),
+                              );
+                            },
+                            child: Text(
+                              file.fileName,
+                              style: TextStyles.textTable,
+                            ),
+                          )),
+                          DataCell(
+                            Text(
+                              file.size,
+                              style: TextStyles.textTable,
+                            ),
+                          ),
+                          DataCell(
+                            Text(
+                              file.dateUpload,
+                              style: TextStyles.textTable,
+                            ),
+                          ),
+                          DataCell(
+                            ElevatedButton(
+                              onPressed: () async {
+                                Response response = await Dio().get(
+                                  "http://172.31.71.106:8080/downloads?name=${file.fileName}",
+                                );
+                                print(response);
+                              },
+                              style: ButtonStyle(
+                                backgroundColor:
+                                    MaterialStateProperty.all<Color>(
+                                        CustomColor.purple50),
+                              ),
+                              child: const Text(
+                                'Download',
+                                style: TextStyle(color: Colors.white),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                    .toList(),
+              ),
             ),
           ),
         ],
       ),
-    );
-  }
-}
-
-class FileDetailsView extends StatelessWidget {
-  final FileData file;
-
-  const FileDetailsView({Key? key, required this.file}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('File Details'),
-      ),
-      body: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Text('File Name: ${file.fileName}'),
-          Text('Size: ${file.size}'),
-          Text('Date Upload: ${file.dateUpload}'),
-          // Add more details as needed
-        ],
-      ),
-    );
-  }
-}
-
-class FileData {
-  String fileName;
-  String size;
-  String dateUpload;
-
-  FileData({
-    required this.fileName,
-    required this.size,
-    required this.dateUpload,
-  });
-
-  // Convert FileData instance to JSON
-  Map<String, dynamic> toJson() {
-    return {
-      'fileName': fileName,
-      'size': size,
-      'dateUpload': dateUpload,
-    };
-  }
-
-  // Create FileData instance from JSON
-  factory FileData.fromJson(Map<String, dynamic> json) {
-    return FileData(
-      fileName: json['fileName'] ?? '',
-      size: json['size'] ?? '',
-      dateUpload: json['dateUpload'] ?? '',
     );
   }
 }

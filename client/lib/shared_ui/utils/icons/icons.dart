@@ -41,6 +41,6 @@ class CustomIcons {
   static Icon upload = Icon(
     Icons.file_open_outlined,
     color: CustomColor.purple,
-    size: 45,
+    size: 25,
   );
 }

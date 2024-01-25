@@ -3,7 +3,8 @@ const cors = require("cors");
 const { createServer } = require("http");
 const { Server } = require("socket.io");
 const multer = require("multer");
-const path = require("path"); // Thêm dòng này
+const path = require("path"); 
+const fs = require('fs');
 
 const app = express();
 const httpServer = createServer(app);
@@ -18,12 +19,29 @@ const storage = multer.diskStorage({
     cb(null, file.originalname);
   }
 });
-// app.get('/', (req, res) => {
-//   //const updateFiles = fs.readdirSync(uploadDirectory);
-//   res.sendFile(path.join(__dirname, 'index.html'));
-// });
 const upload = multer({ storage: storage });
 app.use(cors());
+app.get('/downloads', (req, res) => {
+  const fileName = req.query.name;
+  console.log(fileName);
+  const filePath = path.join(__dirname, './uploads', fileName);
+
+    // Kiểm tra xem file có tồn tại không
+    if (fs.existsSync(filePath)) {
+      // Sử dụng res.download() để gửi file về client
+      res.download(filePath, fileName, (err) => {
+          if (err) {
+              // Xử lý lỗi nếu có
+              console.error('Error downloading file:', err);
+              res.status(500).send('Internal Server Error');
+          }
+      });
+  } else {
+      // Trả về lỗi nếu file không tồn tại
+      res.status(404).send('File not found');
+  }
+    
+});
 app.post('/uploads', upload.single('file'), (req, res) => {
   // Xử lý tệp đã được tải lên
   res.send('File uploaded!');
@@ -38,6 +56,6 @@ io.on("connection", (client) => {
   client.on('disconnect', () => console.log(`Client disconnected`));
 });
 
-httpServer.listen(port, () => {
-  console.log(`Server running at http://localhost:${port}`);
+httpServer.listen(port, '0.0.0.0', () => {
+  console.log(`Server running at http://localhost${port}`);
 });

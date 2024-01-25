@@ -28,4 +28,14 @@ class TextStyles {
       fontWeight: FontWeight.normal,
       fontSize: 15,
       color: CustomColor.white);
+  static TextStyle tittleTable = TextStyle(
+      fontFamily: 'Inter',
+      fontWeight: FontWeight.normal,
+      fontSize: 25,
+      color: CustomColor.purple);
+  static TextStyle textTable = TextStyle(
+      fontFamily: 'Inter',
+      fontWeight: FontWeight.normal,
+      fontSize: 15,
+      color: CustomColor.grey);
 }

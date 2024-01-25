@@ -26,7 +26,7 @@ class _MyAppState extends State<MyApp> {
   }
 
   void connectAndListen() {
-    IO.Socket socket = IO.io('http://localhost:8080',
+    IO.Socket socket = IO.io('http://172.31.71.106:8080',
         IO.OptionBuilder().setTransports(['websocket']).build());
 
     socket.onConnect((_) {
