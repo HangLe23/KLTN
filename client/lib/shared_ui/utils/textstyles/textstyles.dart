@@ -28,7 +28,7 @@ class TextStyles {
       fontWeight: FontWeight.normal,
       fontSize: 15,
       color: CustomColor.white);
-  static TextStyle tittleTable = TextStyle(
+  static TextStyle titleTable = TextStyle(
       fontFamily: 'Inter',
       fontWeight: FontWeight.normal,
       fontSize: 25,
@@ -38,4 +38,10 @@ class TextStyles {
       fontWeight: FontWeight.normal,
       fontSize: 15,
       color: CustomColor.grey);
+  static TextStyle infoFile = TextStyle(
+    fontFamily: 'Semi',
+    fontWeight: FontWeight.bold,
+    fontSize: 20,
+    color: CustomColor.white,
+  );
 }

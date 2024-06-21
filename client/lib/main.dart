@@ -4,6 +4,8 @@ import 'package:client/index.dart';
 import 'package:flutter/material.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 
+import 'apis/index.dart';
+
 void main() {
   runApp(const MyApp());
 }
@@ -26,7 +28,7 @@ class _MyAppState extends State<MyApp> {
   }
 
   void connectAndListen() {
-    IO.Socket socket = IO.io('http://172.31.71.106:8080',
+    IO.Socket socket = IO.io(BaseURLs.development.url,
         IO.OptionBuilder().setTransports(['websocket']).build());
 
     socket.onConnect((_) {
