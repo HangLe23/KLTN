@@ -1,29 +1,43 @@
 class FileData {
-  String fileName;
-  String size;
-  String dateUpload;
+  final String id;
+  final String fileName;
+  final String size;
+  final String dateUpload;
+  final int iteration;
+  final String checksum;
+  //final String group;
 
-  FileData({
-    required this.fileName,
-    required this.size,
-    required this.dateUpload,
-  });
+  FileData(
+      {required this.id,
+      required this.fileName,
+      required this.size,
+      required this.dateUpload,
+      required this.iteration,
+      required this.checksum
+      //required this.group,
+      });
 
-  // Convert FileData instance to JSON
   Map<String, dynamic> toJson() {
     return {
+      'id': id,
       'fileName': fileName,
       'size': size,
       'dateUpload': dateUpload,
+      'iteration': iteration,
+      'checksum': checksum
+      //'group': group,
     };
   }
 
-  // Create FileData instance from JSON
-  factory FileData.fromJson(Map<String, dynamic> json) {
+  static FileData fromJson(Map<String, dynamic> json) {
     return FileData(
-      fileName: json['fileName'] ?? '',
-      size: json['size'] ?? '',
-      dateUpload: json['dateUpload'] ?? '',
-    );
+        id: json['id'],
+        fileName: json['fileName'],
+        size: json['size'],
+        dateUpload: json['dateUpload'],
+        iteration: json['iteration'],
+        checksum: json['cheacksum']
+        //group: json['group'],
+        );
   }
 }

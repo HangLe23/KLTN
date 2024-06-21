@@ -43,4 +43,9 @@ class CustomIcons {
     color: CustomColor.purple,
     size: 25,
   );
+  static Icon add = Icon(
+    Icons.add_circle_outline,
+    color: CustomColor.purple,
+    size: 25,
+  );
 }
