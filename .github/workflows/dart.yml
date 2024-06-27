@@ -21,6 +21,7 @@ jobs:
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v2
+      id: builx
 
     - name: Log in to Docker Hub
       uses: docker/login-action@v2
@@ -28,12 +29,12 @@ jobs:
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_ACCESSTOKEN }}
 
-    # - name: Build and push Docker image
-    #   uses: docker/build-push-action@v4
-    #   with:
-    #     context: .
-    #     push: true
-    #     tags: ${{ secrets.DOCKER_REGISTRY }}/project/your-repo:latestrmat --output=none --set-exit-if-changed .
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v4
+      with:
+        context: .
+        push: true
+        tags: ${{ secrets.USERNAME }}/project/your-repo:latestrmat --output=none --set-exit-if-changed .
 
       # Consider passing '--fatal-infos' for slightly stricter analysis.
       
