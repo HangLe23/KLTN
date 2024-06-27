@@ -32,7 +32,7 @@ COPY server/ .
 COPY --from=flutter_builder /app/client/build/web /app/server/public
 
 # Expose the port on which the server will run
-EXPOSE 8080
+EXPOSE 8000
 
 # Define the command to run the server
 CMD ["node", "index.js"]
