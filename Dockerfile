@@ -29,7 +29,7 @@ RUN npm install
 COPY server/ .
 
 # Copy the Flutter build output to the server's public directory
-COPY --from=flutter_builder /KLTN/client/build/web /KLTN/server/public-flutter
+#COPY --from=flutter_builder /KLTN/client/build/web /KLTN/server/public-flutter
 
 # Expose the port on which the server will run
 EXPOSE 8000
