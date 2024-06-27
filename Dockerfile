@@ -11,7 +11,7 @@ COPY client/ .
 #RUN flutter pub get
 
 # Build the Flutter web app
-RUN flutter build web
+#RUN flutter build web
 
 # Stage 2: Set up the Node.js server
 FROM node:14 as server_builder
