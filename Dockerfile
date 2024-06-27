@@ -2,13 +2,13 @@
 FROM cirrusci/flutter:latest as flutter_builder
 
 # Set the working directory
-WORKDIR /app/client
+WORKDIR /KLTN/client
 
 # Copy the Flutter client source code
 COPY client/ .
 
 # Get Flutter dependencies
-RUN flutter pub get
+//RUN flutter pub get
 
 # Build the Flutter web app
 RUN flutter build web
@@ -17,7 +17,7 @@ RUN flutter build web
 FROM node:14 as server_builder
 
 # Set the working directory
-WORKDIR /app/server
+WORKDIR /KLTN/server
 
 # Copy the server source code
 COPY server/package*.json ./
@@ -29,7 +29,7 @@ RUN npm install
 COPY server/ .
 
 # Copy the Flutter build output to the server's public directory
-COPY --from=flutter_builder /app/client/build/web /app/server/public
+COPY --from=flutter_builder /KLTN/client/build/web /KLTN/server/public-flutter
 
 # Expose the port on which the server will run
 EXPOSE 8000
