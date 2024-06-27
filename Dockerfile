@@ -8,7 +8,7 @@ WORKDIR /KLTN/client
 COPY client/ .
 
 # Get Flutter dependencies
-//RUN flutter pub get
+#RUN flutter pub get
 
 # Build the Flutter web app
 RUN flutter build web
