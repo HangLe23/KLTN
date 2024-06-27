@@ -4,6 +4,7 @@ import 'dart:html' as html;
 
 import 'package:client/apis/index.dart';
 import 'package:client/index.dart';
+import 'package:client/screen/node_service.dart';
 import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -21,40 +22,19 @@ class SourceScreen extends StatefulWidget {
 
 class _SourceScreenState extends State<SourceScreen> {
   List<FileData> fileList = [];
-  Map<String, bool> selectedFiles =
-      {}; // Map to store selected state for each fileId
-
+  Map<String, bool> selectedFiles = {};
+  Map<String, String?> selectedNodes = {};
   Future<void> saveFileList() async {
     if (kIsWeb) {
-      // If in a web environment, save fileList to localStorage
       html.window.localStorage['fileList'] =
           convert.jsonEncode(fileList.map((file) => file.toJson()).toList());
     } else {
-      // If not in a web environment, use SharedPreferences as before
       SharedPreferences prefs = await SharedPreferences.getInstance();
       prefs.setStringList(
         'fileList',
         fileList.map((file) => convert.jsonEncode(file.toJson())).toList(),
       );
     }
-  }
-
-  int determineIteration(String fileName) {
-    List<String> parts = fileName.split('-');
-    if (parts.isNotEmpty) {
-      String firstPart = parts[0];
-      String lastPart = parts.last.split('.').first;
-      if (firstPart == 'fm' && lastPart == 'lime') {
-        return 8;
-      } else if (firstPart == 'fm' && lastPart == 'b200') {
-        return 14;
-      } else if (firstPart == 'wifi' && lastPart == 'b200') {
-        return 14;
-      } else if (firstPart == 'wifi' && lastPart == 'lime') {
-        return 7;
-      }
-    }
-    return 0;
   }
 
   bool isFileAlreadyUploaded(String fileName) {
@@ -93,6 +73,7 @@ class _SourceScreenState extends State<SourceScreen> {
       }
 
       // Show input dialog for iterations and checksum
+      // ignore: use_build_context_synchronously
       Map<String, dynamic>? dialogResult = await showInputDialog(context);
       if (dialogResult == null) {
         return; // User cancelled the input dialog
@@ -127,13 +108,13 @@ class _SourceScreenState extends State<SourceScreen> {
 
         setState(() {
           fileList.add(FileData(
-            id: fileId,
-            fileName: file.name,
-            size: file.size.toString(),
-            dateUpload: DateFormat('yyyy-MM-dd').format(DateTime.now()),
-            iteration: iterations,
-            checksum: checksum,
-          ));
+              id: fileId,
+              fileName: file.name,
+              size: file.size.toString(),
+              dateUpload: DateFormat('yyyy-MM-dd').format(DateTime.now()),
+              iteration: iterations,
+              checksum: checksum,
+              sdr: ''));
         });
 
         // Save the updated list of files to storage
@@ -218,34 +199,38 @@ class _SourceScreenState extends State<SourceScreen> {
       List<FileData> selectedFilesList =
           fileList.where((file) => selectedFiles[file.id] ?? false).toList();
 
-      // Get unique service groups from selected files
-      Set<String> uniqueServiceGroups = selectedFilesList
-          .map((file) => getServiceGroup(file.fileName))
-          .toSet();
+      // Prepare HTTP request body
+      Map<String, dynamic> requestBody = {
+        'selectedFiles':
+            selectedFilesList.map((file) => file.fileName).toList(),
+      };
 
-      // Generate message for server
-      String message = 'all_${uniqueServiceGroups.join('-')}-rx';
+      Response response = await dio
+          .post("${BaseURLs.development.url}/downloadAll", data: requestBody);
 
-      Response response = await dio.post(
-        "${BaseURLs.development.url}/triggerDownload",
-        data: {'message': message},
-      );
-
-      print(response.data);
-      // Optionally handle response here
+      if (response.statusCode == 200) {
+        print('Download all request sent successfully');
+        // Optionally handle response here
+      } else {
+        print('Failed to send download all request: ${response.statusCode}');
+        // Handle error
+      }
     } catch (e) {
-      print('Error sending download request: $e');
+      print('Error sending download all request: $e');
       // Handle error
     }
   }
 
-  Future<void> sendDownloadRequest(String fileName) async {
+  Future<void> sendDownloadRequest(String fileName, String nodeId) async {
     Dio dio = Dio();
     try {
       // Send request to download a specific file
       Response response = await dio.post(
         "${BaseURLs.development.url}/downloads",
-        data: {'file': fileName}, // Pass single file name as data
+        data: {
+          'file': fileName,
+          'nodeId': nodeId
+        }, // Pass single file name as data
       );
 
       print(response.data);
@@ -276,199 +261,254 @@ class _SourceScreenState extends State<SourceScreen> {
     }
 
     return Scaffold(
-      backgroundColor: CustomColor.background,
-      body: Column(
-        children: [
-          const SizedBox(height: 20),
-          Row(
-            children: [
-              const SizedBox(width: 100),
-              IconButton(
-                onPressed: () {
-                  uploadFile();
-                },
-                icon: CustomIcons.upload,
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  // Get selected files
-                  sendDownloadAllRequest();
-                },
-                style: ButtonStyle(
-                  backgroundColor:
-                      MaterialStateProperty.all<Color>(CustomColor.purple50),
+      backgroundColor: CustomColor.white,
+      body: Padding(
+        padding: const EdgeInsets.all(50.0),
+        child: Column(
+          children: [
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                const SizedBox(width: 100),
+                IconButton(
+                  onPressed: () {
+                    uploadFile();
+                  },
+                  icon: CustomIcons.upload,
                 ),
-                child: const Text(
-                  'Download All',
-                  style: TextStyle(color: Colors.white),
+                const Spacer(),
+                ElevatedButton(
+                  onPressed: () {
+                    // Get selected files
+                    sendDownloadAllRequest();
+                  },
+                  style: ButtonStyle(
+                    backgroundColor:
+                        MaterialStateProperty.all<Color>(CustomColor.purple50),
+                  ),
+                  child: const Text(
+                    'Download All',
+                    style: TextStyle(color: Colors.white),
+                  ),
                 ),
-              ),
-            ],
-          ),
-          const DividerWidget(),
-          Expanded(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.vertical,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: groupedFiles.entries.map((entry) {
-                  String serviceGroup = entry.key;
-                  List<FileData> files = entry.value;
+              ],
+            ),
+            Expanded(
+              child: SingleChildScrollView(
+                scrollDirection: Axis.vertical,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: groupedFiles.entries.map((entry) {
+                    String serviceGroup = entry.key;
+                    List<FileData> files = entry.value;
 
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 8),
-                        child: Text(
-                          serviceGroup,
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 8),
+                          child: Text(
+                            serviceGroup,
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
-                      ),
-                      SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: DataTable(
-                          columnSpacing: 120,
-                          columns: [
-                            DataColumn(
-                              label: Text(
-                                'File Name',
-                                style: TextStyles.titleTable,
+                        SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: DataTable(
+                            columnSpacing: 120,
+                            columns: [
+                              DataColumn(
+                                label: Text(
+                                  'File Name',
+                                  style: TextStyles.titleTable,
+                                ),
                               ),
-                            ),
-                            DataColumn(
-                              label: Text(
-                                'Size',
-                                style: TextStyles.titleTable,
+                              DataColumn(
+                                label: Text(
+                                  'Size',
+                                  style: TextStyles.titleTable,
+                                ),
                               ),
-                            ),
-                            DataColumn(
-                              label: Text(
-                                'Date Upload',
-                                style: TextStyles.titleTable,
+                              DataColumn(
+                                label: Text(
+                                  'Date Upload',
+                                  style: TextStyles.titleTable,
+                                ),
                               ),
-                            ),
-                            DataColumn(
-                              label: Text(
-                                'Download',
-                                style: TextStyles.titleTable,
+                              DataColumn(
+                                label: Text(
+                                  'Select Node', // Thêm cột Node
+                                  style: TextStyles.titleTable,
+                                ),
                               ),
-                            ),
-                          ],
-                          rows: files.map((file) {
-                            return DataRow(
-                                selected: selectedFiles[file.id] ?? false,
-                                onSelectChanged: (selected) {
-                                  setState(() {
-                                    selectedFiles[file.id] = selected ?? false;
-                                  });
-                                },
-                                cells: [
-                                  DataCell(
-                                    Text(
-                                      file.fileName,
-                                      style: TextStyles.textTable,
-                                    ),
-                                  ),
-                                  DataCell(
-                                    Text(
-                                      file.size,
-                                      style: TextStyles.textTable,
-                                    ),
-                                  ),
-                                  DataCell(
-                                    Text(
-                                      file.dateUpload,
-                                      style: TextStyles.textTable,
-                                    ),
-                                  ),
-                                  DataCell(
-                                    ElevatedButton(
-                                      onPressed: () {
-                                        // Handle individual file download
-                                        // Not fully implemented in this example
-                                        sendDownloadRequest(file.fileName);
-                                        log(file.fileName);
-                                      },
-                                      style: ButtonStyle(
-                                        backgroundColor:
-                                            MaterialStateProperty.all<Color>(
-                                                CustomColor.purple50),
-                                      ),
-                                      child: const Text(
-                                        'Download',
-                                        style: TextStyle(color: Colors.white),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                                onLongPress: () {
-                                  showDialog(
-                                    context: context,
-                                    builder: (BuildContext context) {
-                                      return AlertDialog(
-                                        title: const Text("File Details"),
-                                        content: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Text("File Name: ${file.fileName}"),
-                                            const DividerWidget(),
-                                            const Text("Type: Python"),
-                                            const SizedBox(height: 10),
-                                            Text("File Size: ${file.size}"),
-                                            const SizedBox(height: 10),
-                                            Text(
-                                                "Date Upload: ${file.dateUpload.toString()}"),
-                                            const DividerWidget(),
-                                            Text(
-                                                "Iteration: ${file.iteration}"),
-                                            const SizedBox(height: 10),
-                                            Text("Checksum: ${file.checksum}"),
-                                            const SizedBox(height: 10),
-                                            const Text("SDR Device"),
-                                            const DividerWidget(),
-                                            const Text("Decription: "),
-                                          ],
-                                        ),
-                                        actions: [
-                                          TextButton(
-                                            child: const Text("Close"),
-                                            onPressed: () {
-                                              Navigator.of(context).pop();
-                                            },
-                                          ),
-                                        ],
-                                      );
-                                    },
-                                  );
-                                },
-                                color:
-                                    MaterialStateProperty.resolveWith<Color?>(
-                                  (Set<MaterialState> states) {
-                                    if (states
-                                        .contains(MaterialState.hovered)) {
-                                      return CustomColor.purple50;
-                                    }
-                                    return null;
+                              DataColumn(
+                                label: Text(
+                                  'Download',
+                                  style: TextStyles.titleTable,
+                                ),
+                              ),
+                            ],
+                            rows: files.map((file) {
+                              return DataRow(
+                                  selected: selectedFiles[file.id] ?? false,
+                                  onSelectChanged: (selected) {
+                                    setState(() {
+                                      selectedFiles[file.id] =
+                                          selected ?? false;
+                                    });
                                   },
-                                ));
-                          }).toList(),
+                                  cells: [
+                                    DataCell(
+                                      Text(
+                                        file.fileName,
+                                        style: TextStyles.textTable,
+                                      ),
+                                    ),
+                                    DataCell(
+                                      Text(
+                                        file.size,
+                                        style: TextStyles.textTable,
+                                      ),
+                                    ),
+                                    DataCell(
+                                      Text(
+                                        file.dateUpload,
+                                        style: TextStyles.textTable,
+                                      ),
+                                    ),
+                                    DataCell(
+                                      DropdownButton<String>(
+                                        value: selectedNodes[file.id],
+                                        hint: const Text('Select Node'),
+                                        items: NodeService().nodes.map((node) {
+                                          return DropdownMenuItem<String>(
+                                            value: node.id,
+                                            child: Text(node.id ?? 'N/A'),
+                                          );
+                                        }).toList(),
+                                        onChanged: (value) {
+                                          setState(() {
+                                            selectedNodes[file.id] = value;
+                                            file.sdr = value!;
+                                          });
+                                        },
+                                      ),
+                                    ),
+                                    DataCell(
+                                      ElevatedButton(
+                                        onPressed: () {
+                                          // Handle individual file download
+                                          // Not fully implemented in this example
+                                          sendDownloadRequest(
+                                              file.fileName, file.sdr);
+                                          log(file.sdr);
+                                          log(file.fileName);
+                                        },
+                                        style: ButtonStyle(
+                                          backgroundColor:
+                                              MaterialStateProperty.all<Color>(
+                                                  CustomColor.purple50),
+                                        ),
+                                        child: const Text(
+                                          'Download',
+                                          style: TextStyle(color: Colors.white),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                  onLongPress: () {
+                                    showDialog(
+                                      context: context,
+                                      builder: (BuildContext context) {
+                                        String? description;
+
+                                        if (file.fileName.contains('fm') &&
+                                            file.fileName.contains('lime')) {
+                                          description =
+                                              'FM Receiver for limeSDR';
+                                        } else if (file.fileName
+                                                .contains('fm') &&
+                                            file.fileName.contains('b200')) {
+                                          description =
+                                              'FM Receiver for USRP B200 mini';
+                                        } else if (file.fileName
+                                                .contains('wifi') &&
+                                            file.fileName.contains('lime')) {
+                                          description =
+                                              'Wifi Receiver for limeSDR';
+                                        } else if (file.fileName
+                                                .contains('wifi') &&
+                                            file.fileName.contains('b200')) {
+                                          description =
+                                              'Wifi Receiver for USRP B200 mini';
+                                        }
+
+                                        return AlertDialog(
+                                          title: const Text("File Details"),
+                                          content: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Text(
+                                                  "File Name: ${file.fileName}"),
+                                              const DividerWidget(),
+                                              const Text("Type: Python"),
+                                              const SizedBox(height: 10),
+                                              Text("File Size: ${file.size}"),
+                                              const SizedBox(height: 10),
+                                              Text(
+                                                  "Date Upload: ${file.dateUpload.toString()}"),
+                                              const DividerWidget(),
+                                              Text(
+                                                  "Iteration: ${file.iteration}"),
+                                              const SizedBox(height: 10),
+                                              Text(
+                                                  "Checksum: ${file.checksum}"),
+                                              const SizedBox(height: 10),
+                                              Text("Node: ${file.sdr}"),
+                                              const DividerWidget(),
+                                              Text("Decription: $description"),
+                                            ],
+                                          ),
+                                          actions: [
+                                            TextButton(
+                                              child: const Text("Close"),
+                                              onPressed: () {
+                                                Navigator.of(context).pop();
+                                              },
+                                            ),
+                                          ],
+                                        );
+                                      },
+                                    );
+                                  },
+                                  color:
+                                      MaterialStateProperty.resolveWith<Color?>(
+                                    (Set<MaterialState> states) {
+                                      if (states
+                                          .contains(MaterialState.hovered)) {
+                                        return CustomColor.purple50;
+                                      }
+                                      return null;
+                                    },
+                                  ));
+                            }).toList(),
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 20),
-                    ],
-                  );
-                }).toList(),
+                        const SizedBox(height: 20),
+                      ],
+                    );
+                  }).toList(),
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

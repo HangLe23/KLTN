@@ -7,7 +7,10 @@ const path = require("path");
 const bodyParser = require('body-parser');
 const mqtt = require('mqtt');
 const fs = require('fs');
+const { Console } = require("console");
+const { spawn } = require('child_process');
 
+// Các khai báo khác...
 const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer);
@@ -40,6 +43,8 @@ app.use(cors());
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
 // trang chủ web
 app.use(express.static(path.join(__dirname, 'public-flutter')));
 app.get("*", (req, res) => {
@@ -59,39 +64,34 @@ app.post('/uploads', upload.single('file'), (req, res) => {
   res.send('File uploaded!');
 });
 
-// download tệp về rasp
-// Route to handle download request
 app.post('/downloads', (req, res) => {
-  const files = req.body.file; // Assuming files is sent as an array of file names
-console.log(req.body);
-  // Validate request body (optional)
-  if (!files || !Array.isArray(files) || files.length === 0) {
+  const file = req.body.file;
+  console.log(file);
+  const nodeId = req.body.nodeId; // Node ID
+
+  // Validate request body
+  if (!file || typeof file !== 'string' || !nodeId || typeof nodeId !== 'string') {
     return res.status(400).json({ error: 'Invalid request' });
   }
-
-  // Logic to handle file download
-  // Example: Download each file from 'uploads' directory
-  files.forEach(fileName => {
-    const filePath = path.join(__dirname, 'uploads', fileName);
-    if (fs.existsSync(filePath)) {
-      res.download(filePath, fileName, (err) => {
-        if (err) {
-          console.error('Error downloading file:', err);
-          // Handle error response if needed
-        } else {
-          console.log('File downloaded successfully:', fileName);
-        }
-      });
-    } else {
-      console.error('File not found:', fileName);
-      res.status(404).send('File not found');
+  const topic = 'server/download_request';
+  const parts = file.split('-');
+  const service = parts[0];
+  const rx = parts[1];
+  const message = `${nodeId}_${service}-${rx}`;
+  //const message = `${nodeId}_${file}`
+  const client = mqtt.connect(brokerUrl, options);
+  client.publish(topic, message, (err) => {
+    if (err) {
+      console.error('Error publishing message:', err);
+      return res.status(500).json({ error: 'Failed to send download request' });
     }
+    // Publish thành công
+    res.status(200).json({ message: 'Download request sent successfully' });
   });
-
-  // Send success response (optional)
-  res.send('Download request handled successfully');
 });
 
+
+  
 // add node mới
 app.post("/addNode", (req, res) => {
   const { id, cpu, gpu, ram, services, sdr } = req.body;
@@ -137,17 +137,35 @@ app.post("/addNode", (req, res) => {
 });
 
 // New route for triggering the "all" message
-app.post('/triggerDownload', (req, res) => {
-  const message = req.body.message;
-  mqttClient.publish('server/download_request', message, (err) => {
-    if (err) {
-      console.error('Error publishing download request:', err);
-      res.status(500).send('Error triggering download');
-      return;
-    }
-    console.log('Published message:', message);
-    res.send('Download request triggered');
-  });
+app.post('/downloadAll', (req, res) => {
+  try {
+    const { selectedFiles } = req.body;
+    console.log('Selected files:', selectedFiles);
+
+    // Kết nối tới MQTT broker
+    const client = mqtt.connect(brokerUrl, options);
+
+    // Chuẩn bị và gửi message cho từng file qua kênh server/download_request
+    selectedFiles.forEach((file) => {
+        const topic = 'server/download_request';
+        const message = `all_${file}`;
+        console.log(file); 
+
+        client.publish(topic, message, (err) => {
+            if (err) {
+                console.error(`Error publishing message for file ${file}:`, err);
+                return res.status(500).json({ error: `Failed to send download request for file ${file}` });
+            }
+            console.log(`Download request sent for file ${file}`);
+        });
+    });
+
+    // Publish thành công
+    res.status(200).json({ message: 'Download requests sent successfully' });
+} catch (err) {
+    console.error('Error handling download all request:', err);
+    res.status(500).json({ error: 'Internal server error' });
+}
 });
 
 // cập nhật tiến trình tải xuống trên kênh device/download

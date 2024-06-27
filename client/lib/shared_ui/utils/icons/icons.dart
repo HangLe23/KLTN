@@ -5,17 +5,17 @@ class CustomIcons {
   CustomIcons._();
   static Icon home = Icon(
     Icons.home,
-    color: CustomColor.white,
+    color: CustomColor.menu,
     size: 20,
   );
   static Icon source = Icon(
     Icons.source,
-    color: CustomColor.white,
+    color: CustomColor.menu,
     size: 20,
   );
   static Icon node = Icon(
     Icons.devices,
-    color: CustomColor.white,
+    color: CustomColor.menu,
     size: 20,
   );
   static Icon monitoring = Icon(

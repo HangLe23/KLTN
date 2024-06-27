@@ -17,7 +17,7 @@ class TextStyles {
       fontFamily: 'Lato',
       fontWeight: FontWeight.w200,
       fontSize: 20,
-      color: CustomColor.white);
+      color: CustomColor.menu);
   static TextStyle searchtext = TextStyle(
       fontFamily: 'Lato',
       fontWeight: FontWeight.w200,

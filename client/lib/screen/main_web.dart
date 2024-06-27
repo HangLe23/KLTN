@@ -151,7 +151,7 @@ class _MainWebState extends State<MainWeb> {
             selectedIndex = index;
           });
         },
-        backgroundColor: CustomColor.menu,
+        backgroundColor: CustomColor.white,
         indicatorColor: CustomColor.pink50,
         children: [
           const Padding(padding: EdgeInsets.all(75)),
