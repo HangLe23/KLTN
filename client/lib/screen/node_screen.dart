@@ -1,5 +1,8 @@
+import 'dart:developer';
+
 import 'package:client/apis/api_client/base_url.dart';
 import 'package:client/index.dart';
+import 'package:client/screen/node_service.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
@@ -21,6 +24,7 @@ class _NodeScreenState extends State<NodeScreen> {
   void initState() {
     super.initState();
     setupSocket();
+    NodeService().nodes = items;
   }
 
   void setupSocket() {
@@ -43,19 +47,16 @@ class _NodeScreenState extends State<NodeScreen> {
       String displayService;
       switch (services) {
         case 'fm':
-          displayService = 'phát sóng fm';
+          displayService = 'FM Receiver';
           break;
         case 'wifi':
-          displayService = 'bắt wifi';
-          break;
-        case 'bluetooth':
-          displayService = 'bắt thiết bị bật bluetooth';
+          displayService = 'Wifi Receiver';
           break;
         case '0':
-          displayService = 'không có dịch vụ đang chạy';
+          displayService = 'No service running';
           break;
         default:
-          displayService = 'dịch vụ không xác định';
+          displayService = 'Unknown service';
       }
       setState(() {
         items.add(NodeItem(
@@ -105,12 +106,12 @@ class _NodeScreenState extends State<NodeScreen> {
         final parts = data.split('_');
         final id = parts[0];
         final file = parts[1];
+        final status = parts[2];
         final progressString = parts[3];
 
-        if (progressString.contains('%')) {
+        if (status == 'progr') {
           // Chuyển đổi progress từ chuỗi sang double
-          final progress =
-              double.tryParse(progressString.replaceAll('%', '')) ?? 0.0;
+          final progress = double.tryParse(progressString) ?? 0.0;
 
           // Tìm node với ID tương ứng và cập nhật progress của nó
           for (var item in items) {
@@ -119,12 +120,12 @@ class _NodeScreenState extends State<NodeScreen> {
               break;
             }
           }
-
-          // Cập nhật thông báo tiến trình đặc biệt
-          _specialStatusesUpdate[id] = file + " updating " + progressString;
-        } else {
-          // Cập nhật thông báo trạng thái đặc biệt
+          _specialStatusesUpdate[id] = 'Updating $progressString%';
+        } else if (status == 'finish') {
           _specialStatusesUpdate[id] = _getProgressUpdate(file, progressString);
+        } else if (status != 'progr' && status != 'finish') {
+          _specialStatusesUpdate[id] = 'Run time: $status';
+          log(_specialStatusesUpdate[id].toString());
         }
       });
     });
@@ -150,9 +151,9 @@ class _NodeScreenState extends State<NodeScreen> {
   String _getProgressUpdate(String file, String progressString) {
     switch (progressString) {
       case 'success':
-        return 'File $file updated successfully';
+        return 'Updated successfully';
       case 'fail':
-        return 'File $file updated failed';
+        return 'Updated failed';
       default:
         return 'Unknown status';
     }
@@ -161,7 +162,7 @@ class _NodeScreenState extends State<NodeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: CustomColor.background,
+      backgroundColor: CustomColor.white,
       body: Column(
         children: [
           const SizedBox(height: 20),
@@ -203,16 +204,22 @@ class _NodeScreenState extends State<NodeScreen> {
                   ),
                   DataColumn(
                     label: Text(
-                      'Progress download',
+                      'Download',
                       style: TextStyles.titleTable,
                     ),
                   ),
                   DataColumn(
                     label: Text(
-                      'Progress update',
+                      'Update',
                       style: TextStyles.titleTable,
                     ),
                   ),
+                  // DataColumn(
+                  //   label: Text(
+                  //     'Run time',
+                  //     style: TextStyles.titleTable,
+                  //   ),
+                  // ),
                 ],
                 rows: _buildRows(),
               ),
@@ -235,14 +242,12 @@ class _NodeScreenState extends State<NodeScreen> {
           DataCell(Text(item.id ?? '', style: TextStyles.textTable)),
           DataCell(Text(item.services ?? '', style: TextStyles.textTable)),
           DataCell(
-            // Kiểm tra nếu progressString có dạng number%
             progressString.contains(RegExp(r'\d+%'))
                 ? Stack(
                     children: [
                       SizedBox(
-                        width: 300, // Đặt chiều rộng cho progress indicator
-                        height:
-                            30, // Tăng chiều cao của LinearProgressIndicator
+                        width: 250,
+                        height: 30,
                         child: LinearProgressIndicator(
                           value: item.progress ?? 0.0,
                           backgroundColor: Colors.grey,
@@ -256,18 +261,15 @@ class _NodeScreenState extends State<NodeScreen> {
                       ),
                     ],
                   )
-                // Nếu không, hiển thị progressString như text bình thường
                 : Text(progressString, style: TextStyles.textTable),
           ),
           DataCell(
-            // Kiểm tra nếu progressString có dạng number%
             progressStringUpdate.contains(RegExp(r'\d+%'))
                 ? Stack(
                     children: [
                       SizedBox(
-                        width: 300, // Đặt chiều rộng cho progress indicator
-                        height:
-                            30, // Tăng chiều cao của LinearProgressIndicator
+                        width: 300,
+                        height: 30,
                         child: LinearProgressIndicator(
                           value: item.progress ?? 0.0,
                           backgroundColor: Colors.grey,
@@ -281,9 +283,13 @@ class _NodeScreenState extends State<NodeScreen> {
                       ),
                     ],
                   )
-                // Nếu không, hiển thị progressString như text bình thường
                 : Text(progressStringUpdate, style: TextStyles.textTable),
           ),
+          // DataCell(
+          //   progressStringUpdate.contains('Run time:')
+          //       ? Text(progressStringUpdate, style: TextStyles.textTable)
+          //       : const Text(''),
+          // )
         ],
         onLongPress: () {
           _showItemDetailsDialog(context, item);
@@ -353,6 +359,7 @@ class _NodeScreenState extends State<NodeScreen> {
               gpu: gpu,
               ram: ram,
               deviceSDR: sdr));
+          NodeService().nodes = items;
         });
       } else {
         // Xử lý lỗi nếu yêu cầu không thành công
