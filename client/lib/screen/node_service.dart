@@ -8,5 +8,5 @@ class NodeService {
   }
   NodeService._internal();
 
-  List<NodeItem> nodes = [];
+  List<FileData> service = [];
 }

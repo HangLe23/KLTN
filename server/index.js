@@ -65,20 +65,17 @@ app.post('/uploads', upload.single('file'), (req, res) => {
 });
 
 app.post('/downloads', (req, res) => {
-  const file = req.body.file;
-  console.log(file);
+  const service = req.body.service;
+  console.log(service);
   const nodeId = req.body.nodeId; // Node ID
 
   // Validate request body
-  if (!file || typeof file !== 'string' || !nodeId || typeof nodeId !== 'string') {
+  if (!service || typeof service !== 'string' || !nodeId || typeof nodeId !== 'string') {
     return res.status(400).json({ error: 'Invalid request' });
   }
+  //res.status(200).json({ message: 'Download request received' });
   const topic = 'server/download_request';
-  const parts = file.split('-');
-  const service = parts[0];
-  const rx = parts[1];
-  const message = `${nodeId}_${service}-${rx}`;
-  //const message = `${nodeId}_${file}`
+  const message = `${nodeId}_${service}`
   const client = mqtt.connect(brokerUrl, options);
   client.publish(topic, message, (err) => {
     if (err) {
@@ -136,37 +133,51 @@ app.post("/addNode", (req, res) => {
   });
 });
 
-// New route for triggering the "all" message
 app.post('/downloadAll', (req, res) => {
-  try {
-    const { selectedFiles } = req.body;
-    console.log('Selected files:', selectedFiles);
+  const { services } = req.body;
+  console.log(services);
 
-    // Kết nối tới MQTT broker
+  // Tạo một object để lưu trữ các dịch vụ duy nhất theo service name
+  const uniqueServices = {};
+
+  // Lặp qua các node và dịch vụ tương ứng
+  Object.keys(services).forEach(nodeId => {
+    const service = services[nodeId];
+    console.log(service);
+
+    // Nếu chưa có dịch vụ này trong danh sách uniqueServices, thêm vào
+    if (!uniqueServices[service]) {
+      uniqueServices[service] = [];
+    }
+
+    // Thêm nodeId vào danh sách dịch vụ unique nếu chưa có
+    if (!uniqueServices[service].includes(nodeId)) {
+      uniqueServices[service].push(nodeId);
+    }
+  });
+
+  // Lặp qua uniqueServices để gửi tin nhắn đến broker
+  Object.keys(uniqueServices).forEach(service => {
+    const topic = 'server/download_request';
+    const message = `all_${service}`;
+    console.log(message);
+
+    // Tạo kết nối MQTT và gửi tin nhắn
     const client = mqtt.connect(brokerUrl, options);
-
-    // Chuẩn bị và gửi message cho từng file qua kênh server/download_request
-    selectedFiles.forEach((file) => {
-        const topic = 'server/download_request';
-        const message = `all_${file}`;
-        console.log(file); 
-
-        client.publish(topic, message, (err) => {
-            if (err) {
-                console.error(`Error publishing message for file ${file}:`, err);
-                return res.status(500).json({ error: `Failed to send download request for file ${file}` });
-            }
-            console.log(`Download request sent for file ${file}`);
-        });
+    client.publish(topic, message, (err) => {
+      if (err) {
+        console.error('Error publishing message:', err);
+        return res.status(500).json({ error: 'Failed to send download request' });
+      }
+      // Publish thành công
+      console.log(`Download request for ${service} sent successfully to nodes: ${uniqueServices[service].join(', ')}`);
     });
+  });
 
-    // Publish thành công
-    res.status(200).json({ message: 'Download requests sent successfully' });
-} catch (err) {
-    console.error('Error handling download all request:', err);
-    res.status(500).json({ error: 'Internal server error' });
-}
+  // Trả về kết quả khi hoàn thành
+  res.status(200).json({ message: 'Download requests sent successfully' });
 });
+
 
 // cập nhật tiến trình tải xuống trên kênh device/download
 mqttClient.on('connect', () => {

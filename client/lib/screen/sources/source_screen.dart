@@ -1,5 +1,4 @@
 import 'dart:convert' as convert;
-import 'dart:developer';
 import 'dart:html' as html;
 
 import 'package:client/apis/index.dart';
@@ -22,8 +21,7 @@ class SourceScreen extends StatefulWidget {
 
 class _SourceScreenState extends State<SourceScreen> {
   List<FileData> fileList = [];
-  Map<String, bool> selectedFiles = {};
-  Map<String, String?> selectedNodes = {};
+
   Future<void> saveFileList() async {
     if (kIsWeb) {
       html.window.localStorage['fileList'] =
@@ -73,7 +71,6 @@ class _SourceScreenState extends State<SourceScreen> {
       }
 
       // Show input dialog for iterations and checksum
-      // ignore: use_build_context_synchronously
       Map<String, dynamic>? dialogResult = await showInputDialog(context);
       if (dialogResult == null) {
         return; // User cancelled the input dialog
@@ -81,7 +78,22 @@ class _SourceScreenState extends State<SourceScreen> {
 
       int iterations = dialogResult['iterations'];
       String checksum = dialogResult['checksum'];
-
+      String service;
+      if (file.name.toLowerCase().contains('fm')) {
+        service = 'FM Receiver';
+      } else if (file.name.toLowerCase().contains('wifi')) {
+        service = 'Wifi Receiver';
+      } else {
+        service = 'Unknown Service';
+      }
+      String sdr;
+      if (file.name.toLowerCase().contains('lime')) {
+        sdr = 'LimeSDR';
+      } else if (file.name.toLowerCase().contains('b200')) {
+        sdr = 'USRP B200 mini';
+      } else {
+        sdr = 'Unknown SDR';
+      }
       FormData formData;
 
       if (kIsWeb) {
@@ -99,7 +111,6 @@ class _SourceScreenState extends State<SourceScreen> {
           ),
         });
       }
-
       try {
         Response response = await dio.post(
           "${BaseURLs.development.url}/uploads",
@@ -108,13 +119,16 @@ class _SourceScreenState extends State<SourceScreen> {
 
         setState(() {
           fileList.add(FileData(
-              id: fileId,
-              fileName: file.name,
-              size: file.size.toString(),
-              dateUpload: DateFormat('yyyy-MM-dd').format(DateTime.now()),
-              iteration: iterations,
-              checksum: checksum,
-              sdr: ''));
+            id: fileId,
+            fileName: file.name,
+            size: file.size.toString(),
+            dateUpload: DateFormat('yyyy-MM-dd').format(DateTime.now()),
+            iteration: iterations,
+            checksum: checksum,
+            sdr: sdr,
+            service: service,
+          ));
+          NodeService().service = fileList;
         });
 
         // Save the updated list of files to storage
@@ -172,94 +186,14 @@ class _SourceScreenState extends State<SourceScreen> {
     );
   }
 
-  Future<void> loadFileList() async {
-    if (kIsWeb) {
-      String? jsonFileList = html.window.localStorage['fileList'];
-      if (jsonFileList != null) {
-        Iterable decoded = convert.jsonDecode(jsonFileList);
-        fileList =
-            decoded.map((fileJson) => FileData.fromJson(fileJson)).toList();
-      }
-    } else {
-      SharedPreferences prefs = await SharedPreferences.getInstance();
-      List<String>? jsonFileList = prefs.getStringList('fileList');
-      if (jsonFileList != null) {
-        fileList = jsonFileList
-            .map((json) => FileData.fromJson(convert.jsonDecode(json)))
-            .toList();
-      }
-    }
-    setState(() {});
-  }
-
-  Future<void> sendDownloadAllRequest() async {
-    Dio dio = Dio();
-    try {
-      // Get selected files
-      List<FileData> selectedFilesList =
-          fileList.where((file) => selectedFiles[file.id] ?? false).toList();
-
-      // Prepare HTTP request body
-      Map<String, dynamic> requestBody = {
-        'selectedFiles':
-            selectedFilesList.map((file) => file.fileName).toList(),
-      };
-
-      Response response = await dio
-          .post("${BaseURLs.development.url}/downloadAll", data: requestBody);
-
-      if (response.statusCode == 200) {
-        print('Download all request sent successfully');
-        // Optionally handle response here
-      } else {
-        print('Failed to send download all request: ${response.statusCode}');
-        // Handle error
-      }
-    } catch (e) {
-      print('Error sending download all request: $e');
-      // Handle error
-    }
-  }
-
-  Future<void> sendDownloadRequest(String fileName, String nodeId) async {
-    Dio dio = Dio();
-    try {
-      // Send request to download a specific file
-      Response response = await dio.post(
-        "${BaseURLs.development.url}/downloads",
-        data: {
-          'file': fileName,
-          'nodeId': nodeId
-        }, // Pass single file name as data
-      );
-
-      print(response.data);
-      // Handle response from server if necessary
-    } catch (e) {
-      print('Error sending download request: $e');
-      // Handle error if occurs
-    }
-  }
-
   @override
   void initState() {
     super.initState();
-    loadFileList();
+    //loadFileList();
   }
 
   @override
   Widget build(BuildContext context) {
-    // Group files by service group
-    Map<String, List<FileData>> groupedFiles = {};
-
-    for (FileData file in fileList) {
-      String serviceGroup = getServiceGroup(file.fileName);
-      if (!groupedFiles.containsKey(serviceGroup)) {
-        groupedFiles[serviceGroup] = [];
-      }
-      groupedFiles[serviceGroup]!.add(file);
-    }
-
     return Scaffold(
       backgroundColor: CustomColor.white,
       body: Padding(
@@ -276,233 +210,133 @@ class _SourceScreenState extends State<SourceScreen> {
                   },
                   icon: CustomIcons.upload,
                 ),
-                const Spacer(),
-                ElevatedButton(
-                  onPressed: () {
-                    // Get selected files
-                    sendDownloadAllRequest();
-                  },
-                  style: ButtonStyle(
-                    backgroundColor:
-                        MaterialStateProperty.all<Color>(CustomColor.purple50),
-                  ),
-                  child: const Text(
-                    'Download All',
-                    style: TextStyle(color: Colors.white),
-                  ),
-                ),
               ],
             ),
             Expanded(
               child: SingleChildScrollView(
                 scrollDirection: Axis.vertical,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: groupedFiles.entries.map((entry) {
-                    String serviceGroup = entry.key;
-                    List<FileData> files = entry.value;
+                child: DataTable(
+                  columnSpacing: 120,
+                  columns: [
+                    DataColumn(
+                      label: Text(
+                        'File Name',
+                        style: TextStyles.titleTable,
+                      ),
+                    ),
+                    DataColumn(
+                      label: Text(
+                        'Size',
+                        style: TextStyles.titleTable,
+                      ),
+                    ),
+                    DataColumn(
+                      label: Text(
+                        'Date Upload',
+                        style: TextStyles.titleTable,
+                      ),
+                    ),
+                    DataColumn(
+                      label: Text(
+                        'Service',
+                        style: TextStyles.titleTable,
+                      ),
+                    ),
+                    DataColumn(
+                      label: Text(
+                        'SDR Device',
+                        style: TextStyles.titleTable,
+                      ),
+                    ),
+                  ],
+                  rows: fileList.map((file) {
+                    return DataRow(
+                        cells: [
+                          DataCell(Text(
+                            file.fileName,
+                            style: TextStyles.textTable,
+                          )),
+                          DataCell(Text(
+                            file.size,
+                            style: TextStyles.textTable,
+                          )),
+                          DataCell(Text(
+                            file.dateUpload,
+                            style: TextStyles.textTable,
+                          )),
+                          DataCell(Text(
+                            file.service,
+                            style: TextStyles.textTable,
+                          )),
+                          DataCell(Text(
+                            file.sdr,
+                            style: TextStyles.textTable,
+                          )),
+                        ],
+                        onLongPress: () {
+                          showDialog(
+                            context: context,
+                            builder: (BuildContext context) {
+                              String? description;
 
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 8),
-                          child: Text(
-                            serviceGroup,
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: DataTable(
-                            columnSpacing: 120,
-                            columns: [
-                              DataColumn(
-                                label: Text(
-                                  'File Name',
-                                  style: TextStyles.titleTable,
-                                ),
-                              ),
-                              DataColumn(
-                                label: Text(
-                                  'Size',
-                                  style: TextStyles.titleTable,
-                                ),
-                              ),
-                              DataColumn(
-                                label: Text(
-                                  'Date Upload',
-                                  style: TextStyles.titleTable,
-                                ),
-                              ),
-                              DataColumn(
-                                label: Text(
-                                  'Select Node', // Thêm cột Node
-                                  style: TextStyles.titleTable,
-                                ),
-                              ),
-                              DataColumn(
-                                label: Text(
-                                  'Download',
-                                  style: TextStyles.titleTable,
-                                ),
-                              ),
-                            ],
-                            rows: files.map((file) {
-                              return DataRow(
-                                  selected: selectedFiles[file.id] ?? false,
-                                  onSelectChanged: (selected) {
-                                    setState(() {
-                                      selectedFiles[file.id] =
-                                          selected ?? false;
-                                    });
-                                  },
-                                  cells: [
-                                    DataCell(
-                                      Text(
-                                        file.fileName,
-                                        style: TextStyles.textTable,
-                                      ),
-                                    ),
-                                    DataCell(
-                                      Text(
-                                        file.size,
-                                        style: TextStyles.textTable,
-                                      ),
-                                    ),
-                                    DataCell(
-                                      Text(
-                                        file.dateUpload,
-                                        style: TextStyles.textTable,
-                                      ),
-                                    ),
-                                    DataCell(
-                                      DropdownButton<String>(
-                                        value: selectedNodes[file.id],
-                                        hint: const Text('Select Node'),
-                                        items: NodeService().nodes.map((node) {
-                                          return DropdownMenuItem<String>(
-                                            value: node.id,
-                                            child: Text(node.id ?? 'N/A'),
-                                          );
-                                        }).toList(),
-                                        onChanged: (value) {
-                                          setState(() {
-                                            selectedNodes[file.id] = value;
-                                            file.sdr = value!;
-                                          });
-                                        },
-                                      ),
-                                    ),
-                                    DataCell(
-                                      ElevatedButton(
-                                        onPressed: () {
-                                          // Handle individual file download
-                                          // Not fully implemented in this example
-                                          sendDownloadRequest(
-                                              file.fileName, file.sdr);
-                                          log(file.sdr);
-                                          log(file.fileName);
-                                        },
-                                        style: ButtonStyle(
-                                          backgroundColor:
-                                              MaterialStateProperty.all<Color>(
-                                                  CustomColor.purple50),
-                                        ),
-                                        child: const Text(
-                                          'Download',
-                                          style: TextStyle(color: Colors.white),
-                                        ),
-                                      ),
-                                    ),
+                              if (file.fileName.contains('fm') &&
+                                  file.fileName.contains('lime')) {
+                                description = 'FM Receiver for limeSDR';
+                              } else if (file.fileName.contains('fm') &&
+                                  file.fileName.contains('b200')) {
+                                description = 'FM Receiver for USRP B200 mini';
+                              } else if (file.fileName.contains('wifi') &&
+                                  file.fileName.contains('lime')) {
+                                description = 'Wifi Receiver for limeSDR';
+                              } else if (file.fileName.contains('wifi') &&
+                                  file.fileName.contains('b200')) {
+                                description =
+                                    'Wifi Receiver for USRP B200 mini';
+                              }
+
+                              return AlertDialog(
+                                title: const Text("File Details"),
+                                content: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text("File Name: ${file.fileName}"),
+                                    const Divider(),
+                                    const Text("Type: Python"),
+                                    const SizedBox(height: 10),
+                                    Text("File Size: ${file.size}"),
+                                    const SizedBox(height: 10),
+                                    Text("Date Upload: ${file.dateUpload}"),
+                                    const Divider(),
+                                    Text("Iteration: ${file.iteration}"),
+                                    const SizedBox(height: 10),
+                                    Text("Checksum: ${file.checksum}"),
+                                    const SizedBox(height: 10),
+                                    Text("SDR Device: ${file.sdr}"),
+                                    const Divider(),
+                                    Text("Description: $description"),
                                   ],
-                                  onLongPress: () {
-                                    showDialog(
-                                      context: context,
-                                      builder: (BuildContext context) {
-                                        String? description;
-
-                                        if (file.fileName.contains('fm') &&
-                                            file.fileName.contains('lime')) {
-                                          description =
-                                              'FM Receiver for limeSDR';
-                                        } else if (file.fileName
-                                                .contains('fm') &&
-                                            file.fileName.contains('b200')) {
-                                          description =
-                                              'FM Receiver for USRP B200 mini';
-                                        } else if (file.fileName
-                                                .contains('wifi') &&
-                                            file.fileName.contains('lime')) {
-                                          description =
-                                              'Wifi Receiver for limeSDR';
-                                        } else if (file.fileName
-                                                .contains('wifi') &&
-                                            file.fileName.contains('b200')) {
-                                          description =
-                                              'Wifi Receiver for USRP B200 mini';
-                                        }
-
-                                        return AlertDialog(
-                                          title: const Text("File Details"),
-                                          content: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Text(
-                                                  "File Name: ${file.fileName}"),
-                                              const DividerWidget(),
-                                              const Text("Type: Python"),
-                                              const SizedBox(height: 10),
-                                              Text("File Size: ${file.size}"),
-                                              const SizedBox(height: 10),
-                                              Text(
-                                                  "Date Upload: ${file.dateUpload.toString()}"),
-                                              const DividerWidget(),
-                                              Text(
-                                                  "Iteration: ${file.iteration}"),
-                                              const SizedBox(height: 10),
-                                              Text(
-                                                  "Checksum: ${file.checksum}"),
-                                              const SizedBox(height: 10),
-                                              Text("Node: ${file.sdr}"),
-                                              const DividerWidget(),
-                                              Text("Decription: $description"),
-                                            ],
-                                          ),
-                                          actions: [
-                                            TextButton(
-                                              child: const Text("Close"),
-                                              onPressed: () {
-                                                Navigator.of(context).pop();
-                                              },
-                                            ),
-                                          ],
-                                        );
-                                      },
-                                    );
-                                  },
-                                  color:
-                                      MaterialStateProperty.resolveWith<Color?>(
-                                    (Set<MaterialState> states) {
-                                      if (states
-                                          .contains(MaterialState.hovered)) {
-                                        return CustomColor.purple50;
-                                      }
-                                      return null;
+                                ),
+                                actions: [
+                                  TextButton(
+                                    child: const Text("Close"),
+                                    onPressed: () {
+                                      Navigator.of(context).pop();
                                     },
-                                  ));
-                            }).toList(),
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                      ],
-                    );
+                                  ),
+                                ],
+                              );
+                            },
+                          );
+                        },
+                        color: MaterialStateProperty.resolveWith<Color?>(
+                          (Set<MaterialState> states) {
+                            if (states.contains(MaterialState.hovered)) {
+                              return CustomColor.purple50;
+                            }
+                            return null;
+                          },
+                        ));
                   }).toList(),
                 ),
               ),

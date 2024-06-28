@@ -15,16 +15,17 @@ class NodeScreen extends StatefulWidget {
 }
 
 class _NodeScreenState extends State<NodeScreen> {
-  List<NodeItem> items = []; // Danh sách các item thiết bị
+  List<NodeItem> items = [];
   IO.Socket? socket;
   final Map<String, String> _specialStatuses = {};
   final Map<String, String> _specialStatusesUpdate = {};
+  Map<String, String?> selectedServices = {};
+  Map<String, bool> selectedNodes = {};
 
   @override
   void initState() {
     super.initState();
     setupSocket();
-    NodeService().nodes = items;
   }
 
   void setupSocket() {
@@ -41,32 +42,27 @@ class _NodeScreenState extends State<NodeScreen> {
       final gpu = data['gpu'];
       final ram = data['ram'];
       final sdr = data['sdr'];
-      final services = data['services'];
-      //print('Received info message: $infoMessage');
-      // Xử lý chuỗi service
-      String displayService;
-      switch (services) {
-        case 'fm':
-          displayService = 'FM Receiver';
+      String displaySDR;
+      switch (sdr) {
+        case 'lime':
+          displaySDR = 'Lime SDR';
           break;
-        case 'wifi':
-          displayService = 'Wifi Receiver';
-          break;
-        case '0':
-          displayService = 'No service running';
+        case 'b200':
+          displaySDR = 'USRP B200 mini';
           break;
         default:
-          displayService = 'Unknown service';
+          displaySDR = 'Unknown sdr device';
       }
       setState(() {
         items.add(NodeItem(
           id: id,
-          services: displayService,
+          services: '',
           cpu: cpu,
           gpu: gpu,
           ram: ram,
-          deviceSDR: sdr,
+          deviceSDR: displaySDR,
         ));
+        selectedNodes[id] = false;
       });
     });
 
@@ -138,7 +134,9 @@ class _NodeScreenState extends State<NodeScreen> {
   String _getProgressText(String file, String progressString) {
     switch (progressString) {
       case 'finish':
-        return 'File $file has completed downloading but has not been checked';
+        return 'File $file downloaded but not checksum';
+      case 'fail':
+        return 'File $file downloaded failed but not checksum';
       case 'checksumsuccess':
         return 'File $file downloaded successfully';
       case 'checksumfail':
@@ -151,9 +149,9 @@ class _NodeScreenState extends State<NodeScreen> {
   String _getProgressUpdate(String file, String progressString) {
     switch (progressString) {
       case 'success':
-        return 'Updated successfully';
+        return 'Updated successfully with $file';
       case 'fail':
-        return 'Updated failed';
+        return 'Updated failed with $file';
       default:
         return 'Unknown status';
     }
@@ -175,14 +173,46 @@ class _NodeScreenState extends State<NodeScreen> {
                 },
                 icon: CustomIcons.add,
               ),
+              const SizedBox(width: 100),
+              ElevatedButton(
+                onPressed: () {
+                  // selectedNodes.forEach((nodeId, isSelected) {
+                  //   if (isSelected) {
+                  //     String service = selectedServices[nodeId] ?? '';
+                  //     sendDownloadRequest(service, nodeId);
+                  //   }
+                  // });
+                  List<String> selectedNodeIds = selectedNodes.entries
+                      .where((entry) => entry.value)
+                      .map((entry) => entry.key)
+                      .toList();
+
+                  // Nếu chỉ có một node được chọn, gửi yêu cầu download cho node đó
+                  if (selectedNodeIds.length == 1) {
+                    String nodeId = selectedNodeIds.first;
+                    String service = selectedServices[nodeId] ?? '';
+                    sendDownloadRequest(service, nodeId);
+                  } else if (selectedNodeIds.length > 1) {
+                    String service =
+                        selectedServices[selectedNodeIds.first] ?? '';
+                    sendDownloadAllRequest(service);
+                  }
+                },
+                style: ButtonStyle(
+                  backgroundColor:
+                      MaterialStateProperty.all<Color>(CustomColor.purple50),
+                ),
+                child: const Text(
+                  'Download',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
             ],
           ),
-          const DividerWidget(),
           Expanded(
             child: SingleChildScrollView(
               scrollDirection: Axis.vertical,
               child: DataTable(
-                columnSpacing: 120,
                 columns: [
                   DataColumn(
                     label: Text(
@@ -198,7 +228,13 @@ class _NodeScreenState extends State<NodeScreen> {
                   ),
                   DataColumn(
                     label: Text(
-                      'Services',
+                      'SDR device',
+                      style: TextStyles.titleTable,
+                    ),
+                  ),
+                  DataColumn(
+                    label: Text(
+                      'Select Service',
                       style: TextStyles.titleTable,
                     ),
                   ),
@@ -214,12 +250,6 @@ class _NodeScreenState extends State<NodeScreen> {
                       style: TextStyles.titleTable,
                     ),
                   ),
-                  // DataColumn(
-                  //   label: Text(
-                  //     'Run time',
-                  //     style: TextStyles.titleTable,
-                  //   ),
-                  // ),
                 ],
                 rows: _buildRows(),
               ),
@@ -237,10 +267,38 @@ class _NodeScreenState extends State<NodeScreen> {
       final progressString = _specialStatuses[item.id] ?? '';
       final progressStringUpdate = _specialStatusesUpdate[item.id] ?? '';
       return DataRow(
+        selected: selectedNodes[item.id] ?? false,
+        onSelectChanged: (selected) {
+          setState(() {
+            selectedNodes[item.id ?? ''] = selected ?? false;
+          });
+        },
         cells: [
           DataCell(Text('$index', style: TextStyles.textTable)),
           DataCell(Text(item.id ?? '', style: TextStyles.textTable)),
-          DataCell(Text(item.services ?? '', style: TextStyles.textTable)),
+          DataCell(Text(item.deviceSDR ?? '', style: TextStyles.textTable)),
+          DataCell(
+            DropdownButton<String>(
+              value: selectedServices[item.id],
+              hint: const Text('Select Service'),
+              items: NodeService()
+                  .service
+                  .map((file) => file.service)
+                  .toSet()
+                  .map((service) {
+                return DropdownMenuItem<String>(
+                  value: service,
+                  child: Text(service),
+                );
+              }).toList(),
+              onChanged: (value) {
+                setState(() {
+                  selectedServices[item.id ?? ''] = value;
+                  item.services = value!;
+                });
+              },
+            ),
+          ),
           DataCell(
             progressString.contains(RegExp(r'\d+%'))
                 ? Stack(
@@ -285,11 +343,6 @@ class _NodeScreenState extends State<NodeScreen> {
                   )
                 : Text(progressStringUpdate, style: TextStyles.textTable),
           ),
-          // DataCell(
-          //   progressStringUpdate.contains('Run time:')
-          //       ? Text(progressStringUpdate, style: TextStyles.textTable)
-          //       : const Text(''),
-          // )
         ],
         onLongPress: () {
           _showItemDetailsDialog(context, item);
@@ -359,7 +412,7 @@ class _NodeScreenState extends State<NodeScreen> {
               gpu: gpu,
               ram: ram,
               deviceSDR: sdr));
-          NodeService().nodes = items;
+          selectedNodes[id] = false;
         });
       } else {
         // Xử lý lỗi nếu yêu cầu không thành công
@@ -375,5 +428,68 @@ class _NodeScreenState extends State<NodeScreen> {
   void dispose() {
     socket?.dispose();
     super.dispose();
+  }
+
+  Future<void> sendDownloadRequest(String service, String nodeId) async {
+    Dio dio = Dio();
+    String servicerx;
+    if (service == 'FM Receiver') {
+      servicerx = 'fm-rx';
+    } else if (service == 'Wifi Receiver') {
+      servicerx = 'wifi-rx';
+    } else {
+      servicerx = '';
+    }
+
+    try {
+      // Send request to download a specific file
+      Response response = await dio.post(
+        "${BaseURLs.development.url}/downloads",
+        data: {
+          'service': servicerx,
+          'nodeId': nodeId
+        }, // Pass single file name as data
+      );
+      log(servicerx);
+      print(response.data);
+      // Handle response from server if necessary
+    } catch (e) {
+      print('Error sending download request: $e');
+      // Handle error if occurs
+    }
+  }
+
+  Future<void> sendDownloadAllRequest(String service) async {
+    Dio dio = Dio();
+    Map<String, String> servicesRx = {};
+
+    selectedNodes.forEach((nodeId, isSelected) {
+      String service = selectedServices[nodeId] ?? '';
+      String servicerx;
+      if (service == 'FM Receiver') {
+        servicerx = 'fm-rx';
+      } else if (service == 'Wifi Receiver') {
+        servicerx = 'wifi-rx';
+      } else {
+        servicerx = '';
+      }
+      servicesRx[nodeId] = servicerx;
+    });
+
+    try {
+      // Gửi yêu cầu download tất cả các dịch vụ đã chọn
+      Response response = await dio.post(
+        "${BaseURLs.development.url}/downloadAll",
+        data: {
+          'services': servicesRx,
+        },
+      );
+
+      print(response.data);
+      // Xử lý phản hồi từ server nếu cần thiết
+    } catch (e) {
+      print('Error sending download all request: $e');
+      // Xử lý lỗi nếu có
+    }
   }
 }

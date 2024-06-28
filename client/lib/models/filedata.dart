@@ -5,8 +5,8 @@ class FileData {
   final String dateUpload;
   final int iteration;
   final String checksum;
-  String sdr;
-  //final String group;
+  final String sdr;
+  final String service;
 
   FileData({
     required this.id,
@@ -15,7 +15,8 @@ class FileData {
     required this.dateUpload,
     required this.iteration,
     required this.checksum,
-    this.sdr = '',
+    required this.sdr,
+    required this.service,
   });
 
   Map<String, dynamic> toJson() {
@@ -27,6 +28,7 @@ class FileData {
       'iteration': iteration,
       'checksum': checksum,
       'sdr': sdr,
+      'service': service
     };
   }
 
@@ -39,6 +41,7 @@ class FileData {
       iteration: json['iteration'],
       checksum: json['cheacksum'],
       sdr: json['sdr'],
+      service: json['service'],
     );
   }
 }
