@@ -34,12 +34,14 @@
 
   <script>
     // The value below is injected by flutter build, do not touch.
-    const serviceWorkerVersion = "818162149";
+    const serviceWorkerVersion = "3642484501";
   </script>
   <!-- This script adds the flutter initialization JS code -->
   <script src="flutter.js" defer></script>
 </head>
 <body>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
   <script>
     window.addEventListener('load', function(ev) {
       // Download main.dart.js
@@ -54,6 +56,22 @@
         }
       });
     });
+  </script>
+
+  <!-- Firebase Configuration -->
+  <script>
+    var firebaseConfig = {
+        apiKey: "AIzaSyAOZiMqKcTblfLqCX7BkHXoPuuEbWbokYk",
+        authDomain: "kltn-32255.firebaseapp.com",
+        projectId: "kltn-32255",
+        storageBucket: "kltn-32255.appspot.com",
+        messagingSenderId: "504635277327",
+        appId: "1:504635277327:web:b0058287881e03d1b0e37a",
+        measurementId: "G-ZLP2KMG8SE"
+    };
+
+    // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
   </script>
 </body>
 </html>

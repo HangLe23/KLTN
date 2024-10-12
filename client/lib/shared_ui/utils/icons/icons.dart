@@ -18,6 +18,11 @@ class CustomIcons {
     color: CustomColor.menu,
     size: 20,
   );
+  static Icon loguout = Icon(
+    Icons.logout,
+    color: CustomColor.menu,
+    size: 20,
+  );
   static Icon monitoring = Icon(
     Icons.av_timer,
     color: CustomColor.white,

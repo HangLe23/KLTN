@@ -4,6 +4,7 @@ import 'dart:html' as html;
 import 'package:client/apis/index.dart';
 import 'package:client/index.dart';
 import 'package:client/screen/node_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -69,8 +70,7 @@ class _SourceScreenState extends State<SourceScreen> {
         );
         return;
       }
-
-      // Show input dialog for iterations and checksum
+      // ignore: use_build_context_synchronously
       Map<String, dynamic>? dialogResult = await showInputDialog(context);
       if (dialogResult == null) {
         return; // User cancelled the input dialog
@@ -122,7 +122,7 @@ class _SourceScreenState extends State<SourceScreen> {
             id: fileId,
             fileName: file.name,
             size: file.size.toString(),
-            dateUpload: DateFormat('yyyy-MM-dd').format(DateTime.now()),
+            dateUpload: DateFormat('dd-MM-yyyy').format(DateTime.now()),
             iteration: iterations,
             checksum: checksum,
             sdr: sdr,
@@ -133,7 +133,12 @@ class _SourceScreenState extends State<SourceScreen> {
 
         // Save the updated list of files to storage
         saveFileList();
-
+        for (var fileData in fileList) {
+          FirebaseFirestore.instance
+              .collection('files')
+              .doc(fileData.fileName)
+              .set(fileData.toJson());
+        }
         print(response.data);
       } catch (e) {
         print('Error uploading file: $e');
@@ -186,10 +191,27 @@ class _SourceScreenState extends State<SourceScreen> {
     );
   }
 
+  Future<void> fetchFileListFromFirestore() async {
+    try {
+      QuerySnapshot querySnapshot =
+          await FirebaseFirestore.instance.collection('files').get();
+      List<FileData> files = querySnapshot.docs.map((doc) {
+        Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+        return FileData.fromJson(data);
+      }).toList();
+
+      setState(() {
+        fileList = files;
+      });
+    } catch (e) {
+      print('Error fetching file list from Firestore: $e');
+    }
+  }
+
   @override
   void initState() {
     super.initState();
-    //loadFileList();
+    fetchFileListFromFirestore();
   }
 
   @override
