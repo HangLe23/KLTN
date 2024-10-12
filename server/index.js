@@ -223,7 +223,7 @@ io.on("connection", (client) => {
 });
 
 httpServer.listen(port, '0.0.0.0', () => {
-  console.log(`Server running at http://172.31.0.131:${port}`);
+  console.log(`Server running at http://localhost:${port}`);
 });
 
 app.use(express.static(__dirname));

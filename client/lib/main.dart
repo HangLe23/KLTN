@@ -1,12 +1,23 @@
 import 'dart:developer';
 
-import 'package:client/index.dart';
+import 'package:client/screen/login.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 
 import 'apis/index.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+      options: const FirebaseOptions(
+          apiKey: "AIzaSyAOZiMqKcTblfLqCX7BkHXoPuuEbWbokYk",
+          authDomain: "kltn-32255.firebaseapp.com",
+          projectId: "kltn-32255",
+          storageBucket: "kltn-32255.appspot.com",
+          messagingSenderId: "504635277327",
+          appId: "1:504635277327:web:b0058287881e03d1b0e37a",
+          measurementId: "G-ZLP2KMG8SE"));
   runApp(const MyApp());
 }
 
@@ -46,7 +57,7 @@ class _MyAppState extends State<MyApp> {
   Widget build(BuildContext context) {
     return const MaterialApp(
       debugShowCheckedModeBanner: false,
-      home: MainWeb(),
+      home: Login(),
     );
   }
 }

@@ -1,8 +1,7 @@
 import 'dart:async';
 
-import 'package:client/apis/index.dart';
 import 'package:client/index.dart';
-import 'package:client/screen/notification_list.dart';
+import 'package:client/screen/login.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
@@ -22,58 +21,42 @@ class _MainWebState extends State<MainWeb> {
   List<String> notifications = [];
   IO.Socket? socket;
   bool showNotifications = false;
+  Timer? _timer;
+
   @override
   void initState() {
     super.initState();
-    // Set giá trị mặc định cho selectedIndex là 0 (Home)
     selectedIndex = 0;
-    initSocket();
-
-    Timer.periodic(const Duration(seconds: 1), (Timer timer) {
-      updateDateTime(); // Hàm cập nhật ngày giờ
+    updateDateTime(); // Call updateDateTime once in initState
+    // Start periodic timer to update date time
+    _timer = Timer.periodic(const Duration(seconds: 1), (Timer timer) {
+      updateDateTime();
     });
   }
 
-  void initSocket() {
-    socket = IO.io(BaseURLs.development.url, <String, dynamic>{
-      'transports': ['websocket'],
-    });
-
-    // socket?.on('connect', (_) {
-    //   print('Connected to Socket.IO server');
-    // });
-
-    // Lắng nghe các sự kiện
-
-    socket?.on('fileUploaded', (data) {
-      setState(() {
-        notificationCount++;
-      });
-    });
-
-    // socket?.on('infoMessage', (data) {
-    //   // Xử lý sự kiện infoMessage
-    //   setState(() {
-    //     notificationCount++; // Tăng biến đếm thông báo
-    //   });
-    // });
-
-    socket?.on('downloadProgress', (data) {
-      // Xử lý sự kiện downloadProgress
-      setState(() {
-        notificationCount++; // Tăng biến đếm thông báo
-      });
-    });
-
-    // socket.on('disconnect', (_) {
-    //   print('Disconnected from Socket.IO server');
-    // });
+  @override
+  void dispose() {
+    // Cancel the timer when the widget is disposed
+    _timer?.cancel();
+    super.dispose();
   }
 
   void updateDateTime() {
-    setState(() {
-      formattedDate = DateFormat('dd/MM/yyyy HH:mm:ss').format(DateTime.now());
-    });
+    if (mounted) {
+      setState(() {
+        formattedDate =
+            DateFormat('dd/MM/yyyy HH:mm:ss').format(DateTime.now());
+      });
+    }
+  }
+
+  void logout() {
+    // Perform logout actions here (if any)
+    // Navigate back to the login screen
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => const Login()),
+    );
   }
 
   @override
@@ -84,61 +67,12 @@ class _MainWebState extends State<MainWeb> {
         backgroundColor: CustomColor.green50,
         flexibleSpace: Center(
           child: Row(
+            mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              const SizedBox(width: 100),
-              SearchWidget(
-                  textedit: TextEditingController(),
-                  hint: 'Search',
-                  color: CustomColor.white,
-                  function: (query) {}),
-              const Spacer(),
               CustomIcons.timer,
               const SizedBox(width: 5),
-              Text(formattedDate ?? '', // Hiển thị ngày giờ
-                  style: TextStyles.inter15),
-              //IconButton(onPressed: () {}, icon: CustomIcons.notifiaction),
-              Stack(
-                children: [
-                  IconButton(
-                    onPressed: () {
-                      setState(() {
-                        // Đảo ngược trạng thái của biến cờ khi nhấn vào biểu tượng thông báo
-                        showNotifications = !showNotifications;
-                        // Đặt lại biến đếm thông báo khi mở danh sách
-                        if (showNotifications) {
-                          notificationCount = 0;
-                        }
-                      });
-                    },
-                    icon: CustomIcons.notifiaction,
-                  ),
-                  if (notificationCount > 0)
-                    Positioned(
-                      right: 11,
-                      top: 11,
-                      child: Container(
-                        padding: const EdgeInsets.all(2),
-                        decoration: BoxDecoration(
-                          color: Colors.red,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        constraints: const BoxConstraints(
-                          minWidth: 18,
-                          minHeight: 18,
-                        ),
-                        child: Text(
-                          '$notificationCount',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-              const SizedBox(width: 50)
+              Text(formattedDate ?? '', style: TextStyles.inter15),
+              const SizedBox(width: 50),
             ],
           ),
         ),
@@ -147,68 +81,61 @@ class _MainWebState extends State<MainWeb> {
       drawer: NavigationDrawer(
         selectedIndex: selectedIndex,
         onDestinationSelected: (index) {
-          setState(() {
-            selectedIndex = index;
-          });
+          if (index == 2) {
+            logout(); // Logout when index is 2 (Logout menu item)
+          } else {
+            setState(() {
+              selectedIndex = index;
+            });
+          }
         },
         backgroundColor: CustomColor.white,
         indicatorColor: CustomColor.pink50,
         children: [
-          const Padding(padding: EdgeInsets.all(75)),
-          NavigationDrawerDestination(
-              icon: CustomIcons.home,
-              label: Text(
-                "Home",
-                style: TextStyles.menu,
-              )),
-          const SizedBox(height: 50),
-          NavigationDrawerDestination(
-              icon: CustomIcons.source,
-              label: Text(
-                "Sources",
-                style: TextStyles.menu,
-              )),
-          const SizedBox(height: 50),
-          NavigationDrawerDestination(
-              icon: CustomIcons.node,
-              label: Text(
-                "Devices",
-                style: TextStyles.menu,
-              )),
-          const SizedBox(height: 50),
-          // NavigationDrawerDestination(
-          //     icon: CustomIcons.monitoring,
-          //     label: Text(
-          //       "Monitoring",
-          //       style: TextStyles.menu,
-          //     )),
-          // const SizedBox(height: 50),
-          // NavigationDrawerDestination(
-          //     icon: CustomIcons.setting,
-          //     label: Text(
-          //       "Setting",
-          //       style: TextStyles.menu,
-          //     ))
-        ],
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: IndexedStack(
-              index: selectedIndex,
-              children: const [
-                HomeScreen(),
-                SourceScreen(),
-                NodeScreen(),
-                //MonitoringScreen(),
-                //SettingScreen(),
-              ],
+          const Padding(padding: EdgeInsets.all(50)),
+          const CircleAvatar(
+            backgroundColor: Colors.transparent,
+            backgroundImage:
+                AssetImage('assets/images/sbcf-default-avatar.png'),
+            radius: 125,
+          ),
+          Center(
+            child: Text(
+              'ADMIN',
+              style: TextStyles.titleTable,
             ),
           ),
-          if (showNotifications && notifications.isNotEmpty)
-            Expanded(
-              child: NotificationList(notifications: notifications),
+          const SizedBox(height: 75),
+          NavigationDrawerDestination(
+            icon: CustomIcons.source,
+            label: Text(
+              "Files Services",
+              style: TextStyles.menu,
             ),
+          ),
+          const SizedBox(height: 50),
+          NavigationDrawerDestination(
+            icon: CustomIcons.node,
+            label: Text(
+              "Devices",
+              style: TextStyles.menu,
+            ),
+          ),
+          const SizedBox(height: 50),
+          NavigationDrawerDestination(
+            icon: CustomIcons.loguout,
+            label: Text(
+              "Log out",
+              style: TextStyles.menu,
+            ),
+          ),
+        ],
+      ),
+      body: IndexedStack(
+        index: selectedIndex,
+        children: const [
+          SourceScreen(),
+          NodeScreen(),
         ],
       ),
     );

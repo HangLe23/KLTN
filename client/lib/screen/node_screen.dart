@@ -2,7 +2,9 @@ import 'dart:developer';
 
 import 'package:client/apis/api_client/base_url.dart';
 import 'package:client/index.dart';
+import 'package:client/responsitories/node_firebase.dart';
 import 'package:client/screen/node_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
@@ -21,11 +23,17 @@ class _NodeScreenState extends State<NodeScreen> {
   final Map<String, String> _specialStatusesUpdate = {};
   Map<String, String?> selectedServices = {};
   Map<String, bool> selectedNodes = {};
+  final FirestoreService _firestoreService = FirestoreService();
 
   @override
   void initState() {
     super.initState();
     setupSocket();
+    _firestoreService.getNodes().listen((nodeItems) {
+      setState(() {
+        items = nodeItems;
+      });
+    });
   }
 
   void setupSocket() {
@@ -34,36 +42,6 @@ class _NodeScreenState extends State<NodeScreen> {
 
     socket?.onConnect((_) {
       print('Connected to socket');
-    });
-
-    socket?.on('infoMessage', (data) {
-      final id = data['id'];
-      final cpu = data['cpu'];
-      final gpu = data['gpu'];
-      final ram = data['ram'];
-      final sdr = data['sdr'];
-      String displaySDR;
-      switch (sdr) {
-        case 'lime':
-          displaySDR = 'Lime SDR';
-          break;
-        case 'b200':
-          displaySDR = 'USRP B200 mini';
-          break;
-        default:
-          displaySDR = 'Unknown sdr device';
-      }
-      setState(() {
-        items.add(NodeItem(
-          id: id,
-          services: '',
-          cpu: cpu,
-          gpu: gpu,
-          ram: ram,
-          deviceSDR: displaySDR,
-        ));
-        selectedNodes[id] = false;
-      });
     });
 
     socket?.on('downloadProgress', (data) {
@@ -167,35 +145,25 @@ class _NodeScreenState extends State<NodeScreen> {
           Row(
             children: [
               const SizedBox(width: 100),
-              IconButton(
-                onPressed: () {
-                  _addNode('', '', '', '', '', '');
-                },
-                icon: CustomIcons.add,
-              ),
-              const SizedBox(width: 100),
               ElevatedButton(
                 onPressed: () {
-                  // selectedNodes.forEach((nodeId, isSelected) {
-                  //   if (isSelected) {
-                  //     String service = selectedServices[nodeId] ?? '';
-                  //     sendDownloadRequest(service, nodeId);
-                  //   }
-                  // });
                   List<String> selectedNodeIds = selectedNodes.entries
                       .where((entry) => entry.value)
                       .map((entry) => entry.key)
                       .toList();
 
-                  // Nếu chỉ có một node được chọn, gửi yêu cầu download cho node đó
-                  if (selectedNodeIds.length == 1) {
-                    String nodeId = selectedNodeIds.first;
-                    String service = selectedServices[nodeId] ?? '';
-                    sendDownloadRequest(service, nodeId);
-                  } else if (selectedNodeIds.length > 1) {
+                  bool allNodesSelected =
+                      selectedNodeIds.length == items.length;
+
+                  if (allNodesSelected) {
                     String service =
                         selectedServices[selectedNodeIds.first] ?? '';
                     sendDownloadAllRequest(service);
+                  } else {
+                    for (var nodeId in selectedNodeIds) {
+                      String service = selectedServices[nodeId] ?? '';
+                      sendDownloadRequest(service, nodeId);
+                    }
                   }
                 },
                 style: ButtonStyle(
@@ -223,6 +191,12 @@ class _NodeScreenState extends State<NodeScreen> {
                   DataColumn(
                     label: Text(
                       'ID',
+                      style: TextStyles.titleTable,
+                    ),
+                  ),
+                  DataColumn(
+                    label: Text(
+                      'Location',
                       style: TextStyles.titleTable,
                     ),
                   ),
@@ -264,8 +238,10 @@ class _NodeScreenState extends State<NodeScreen> {
     return items.asMap().entries.map((entry) {
       final index = entry.key + 1;
       final item = entry.value;
+      final progress = item.progress ?? 0.0; // Sử dụng progress từ NodeItem
       final progressString = _specialStatuses[item.id] ?? '';
       final progressStringUpdate = _specialStatusesUpdate[item.id] ?? '';
+      // Các dòng còn lại giữ nguyên như trước
       return DataRow(
         selected: selectedNodes[item.id] ?? false,
         onSelectChanged: (selected) {
@@ -276,6 +252,8 @@ class _NodeScreenState extends State<NodeScreen> {
         cells: [
           DataCell(Text('$index', style: TextStyles.textTable)),
           DataCell(Text(item.id ?? '', style: TextStyles.textTable)),
+          DataCell(Text("${item.location} at lab E3.1 - UIT",
+              style: TextStyles.textTable)),
           DataCell(Text(item.deviceSDR ?? '', style: TextStyles.textTable)),
           DataCell(
             DropdownButton<String>(
@@ -291,11 +269,16 @@ class _NodeScreenState extends State<NodeScreen> {
                   child: Text(service),
                 );
               }).toList(),
-              onChanged: (value) {
+              onChanged: (value) async {
                 setState(() {
                   selectedServices[item.id ?? ''] = value;
                   item.services = value!;
                 });
+                // Cập nhật service đã chọn lên Firestore
+                await FirebaseFirestore.instance
+                    .collection('Node')
+                    .doc(item.id)
+                    .update({'SDRService': value});
               },
             ),
           ),
@@ -307,15 +290,15 @@ class _NodeScreenState extends State<NodeScreen> {
                         width: 250,
                         height: 30,
                         child: LinearProgressIndicator(
-                          value: item.progress ?? 0.0,
+                          value: progress / 100,
                           backgroundColor: Colors.grey,
                           valueColor:
                               const AlwaysStoppedAnimation<Color>(Colors.blue),
                         ),
                       ),
                       Center(
-                        child:
-                            Text(progressString, style: TextStyles.textTable),
+                        child: Text('${progress.toStringAsFixed(2)}%',
+                            style: TextStyles.textTable),
                       ),
                     ],
                   )
@@ -364,17 +347,17 @@ class _NodeScreenState extends State<NodeScreen> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: Text('Node Details - ID: ${item.id}'),
+          title: const Text('Node Details'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('ID: ${item.id}'),
               Text('CPU: ${item.cpu}'),
-              Text('GPU: ${item.gpu}'),
               Text('RAM: ${item.ram}'),
-              Text('Services: ${item.services}'),
+              Text('SDR Service: ${item.services}'),
               Text('SDR Device: ${item.deviceSDR ?? 'N/A'}'),
+              Text('Location: ${"${item.location} at lab E3.1 - UIT"}'),
             ],
           ),
           actions: [
@@ -388,40 +371,6 @@ class _NodeScreenState extends State<NodeScreen> {
         );
       },
     );
-  }
-
-  void _addNode(String id, String cpu, String gpu, String ram, String services,
-      String? sdr) async {
-    try {
-      // Khởi tạo Dio
-      Dio dio = Dio();
-
-      // Thực hiện yêu cầu HTTP POST đến máy chủ
-      var response = await dio.post(
-        "${BaseURLs.development.url}/addNode", // Địa chỉ của máy chủ
-      );
-
-      // Kiểm tra mã trạng thái của phản hồi
-      if (response.statusCode == 200) {
-        // Thêm item vào danh sách nếu yêu cầu thành công
-        setState(() {
-          items.add(NodeItem(
-              id: id,
-              services: services,
-              cpu: cpu,
-              gpu: gpu,
-              ram: ram,
-              deviceSDR: sdr));
-          selectedNodes[id] = false;
-        });
-      } else {
-        // Xử lý lỗi nếu yêu cầu không thành công
-        print('Failed to add node: ${response.statusCode}');
-      }
-    } catch (e) {
-      // Xử lý lỗi nếu có lỗi trong quá trình gửi yêu cầu
-      print('Error adding node: $e');
-    }
   }
 
   @override

@@ -44,4 +44,15 @@ class TextStyles {
     fontSize: 20,
     color: CustomColor.white,
   );
+  static TextStyle hintText = TextStyle(
+    fontFamily: 'Semi',
+    fontWeight: FontWeight.bold,
+    fontSize: 10,
+    color: CustomColor.grey,
+  );
+  static TextStyle tittleLogin = TextStyle(
+      fontFamily: 'Lato',
+      fontWeight: FontWeight.normal,
+      fontSize: 50,
+      color: CustomColor.purple);
 }

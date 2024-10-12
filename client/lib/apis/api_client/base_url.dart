@@ -14,7 +14,7 @@ class BaseURL {
 class BaseURLs {
   static const BaseURL development = BaseURL._(
     schemes: 'http://',
-    host: '172.31.0.131',
+    host: 'localhost',
     port: ':8000',
   );
 }
